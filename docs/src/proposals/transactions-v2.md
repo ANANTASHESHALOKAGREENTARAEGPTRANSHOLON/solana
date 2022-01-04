@@ -58,6 +58,7 @@ Map additions require one slot to activate so each map should track how many
 addresses are still pending activation in their on-chain state:
 
 ```rust
+<<<<<<< HEAD
 struct AddressMap {
   // authority must sign for each addition and to close the map account
   authority: Pubkey,
@@ -68,11 +69,51 @@ struct AddressMap {
   activated: bool,
   // list of entries, max capacity of u8::MAX
   entries: Vec<Pubkey>,
+=======
+/// The maximum number of addresses that a lookup table can hold
+pub const LOOKUP_TABLE_MAX_ADDRESSES: usize = 256;
+
+/// The serialized size of lookup table metadata
+pub const LOOKUP_TABLE_META_SIZE: usize = 56;
+
+pub struct LookupTableMeta {
+    /// Lookup tables cannot be closed until the deactivation slot is
+    /// no longer "recent" (not accessible in the `SlotHashes` sysvar).
+    pub ddeactivation_slot: Slot,
+    /// The slot that the table was last extended. Address tables may
+    /// only be used to lookup addresses that were extended before
+    /// the current bank's slot.
+    pub last_extended_slot: Slot,
+    /// The start index where the table was last extended from during
+    /// the `last_extended_slot`.
+    pub last_extended_slot_start_index: u8,
+    /// Authority address which must sign for each modification.
+    pub authority: Option<Pubkey>,
+    // Padding to keep addresses 8-byte aligned
+    pub _padding: u16,
+    // Raw list of addresses follows this serialized structure in
+    // the account's data, starting from `LOOKUP_TABLE_META_SIZE`.
+}
+```
+
+To make it easier for address lookup tables to be updated by multi-sig or
+governance-controlled authorities, addresses can be buffered on-chain in
+a buffer account. Buffer accounts can be used to extend a lookup table
+with many addresses in a single small transaction.
+
+```rust
+pub struct BufferMeta {
+    /// Authority address which must sign for each modification.
+    pub authority: Pubkey,
+
+    // Serialized list of stored addresses follows the above metadata.
+>>>>>>> ca5591bfa (Updates to the address lookup table proposal (#22269))
 }
 ```
 
 #### Cleanup
 
+<<<<<<< HEAD
 Once an address map gets stale and is no longer used, it can be reclaimed by the
 authority withdrawing lamports but the remaining balance must be greater than
 two epochs of rent. This ensures that it takes at least one full epoch to
@@ -80,6 +121,18 @@ deactivate a map.
 
 Maps may not be recreated because each new map must be created at a derived
 address using a monotonically increasing counter as a derivation seed.
+=======
+Once an address lookup table is no longer needed, it can be deactivated and closed
+to have its rent balance reclaimed. Address lookup tables may not be recreated
+at the same address because each new lookup table must be initialized at an address
+derived from a recent slot.
+>>>>>>> ca5591bfa (Updates to the address lookup table proposal (#22269))
+
+Address lookup tables can be deactivated at any time but can continue to be used
+by transactions until the deactivation slot is no longer present in the slot hashes
+sysvar. This cool-down period ensures that in-flight transactions cannot be
+censored and that address lookup tables cannot be closed and recreated for the same
+slot.
 
 #### Cost
 
@@ -207,6 +260,17 @@ referenced through address maps due to inability to verify on-chain data.
 
 ## Security Concerns
 
+<<<<<<< HEAD
+=======
+### Lookup table re-initialization
+
+If an address lookup table can be closed and re-initialized with new addresses,
+any client which is unaware of the change could inadvertently lookup unexpected
+addresses. To avoid this, all address lookup tables must be initialized at an
+address derived from a recent slot and they cannot be closed until the slot
+used for deactivation is no longer in the slot hashes sysvar.
+
+>>>>>>> ca5591bfa (Updates to the address lookup table proposal (#22269))
 ### Resource consumption
 
 Enabling more account inputs in a transaction allows for more program
@@ -234,8 +298,16 @@ Address map accounts will be read very frequently and will therefore be a
 more high profile target for denial of service attacks through write locks
 similar to sysvar accounts.
 
+<<<<<<< HEAD
 For this reason, special handling should be given to address map lookups.
 Address maps lookups should not be affected by account read/write locks.
+=======
+For this reason, special handling should be given to address lookup tables.
+When an address lookup table is used to lookup addresses for a transaction,
+it can be loaded without waiting for a read lock. To avoid race conditions,
+only the addresses appended in previous blocks can be used for lookups and
+deactivation requires a cool-down period.
+>>>>>>> ca5591bfa (Updates to the address lookup table proposal (#22269))
 
 ### Duplicate accounts
 
